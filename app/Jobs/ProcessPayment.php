@@ -10,18 +10,20 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use RuntimeException;
 use Throwable;
 
 class ProcessPayment implements ShouldQueue
 {
     use Queueable;
 
-    public int $tries = 5;
+    public int $tries;
 
     public int $timeout = 10;
 
     public function __construct(public string $reservationId)
     {
+        $this->tries = max(1, (int) config('ticketrush.payment.retry_times', 3));
     }
 
     public function backoff(): array
@@ -97,12 +99,16 @@ class ProcessPayment implements ShouldQueue
                 'payment_reference' => $paymentReference,
             ]);
 
-            $reservation->ticket()
+            $updatedTickets = $reservation->ticket()
                 ->where('status', TicketStatus::Reserved->value)
                 ->update([
                     'status' => TicketStatus::Sold->value,
                     'reserved_until' => null,
                 ]);
+
+            if ($updatedTickets !== 1) {
+                throw new RuntimeException('Reserved ticket state changed before payment confirmation.');
+            }
 
             OutboxEvent::record(
                 aggregateType: 'reservation',

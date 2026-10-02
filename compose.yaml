@@ -140,6 +140,7 @@ services:
     volumes:
       - './services/payment-mock:/app:ro'
     environment:
+      PHP_CLI_SERVER_WORKERS: 8
       PAYMENT_LATENCY_MIN_MS: 50
       PAYMENT_LATENCY_MAX_MS: 150
       PAYMENT_ERROR_RATE: 0.02

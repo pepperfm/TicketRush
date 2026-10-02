@@ -3,19 +3,27 @@
 namespace App\Jobs;
 
 use App\Models\OutboxEvent;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-class ConsumeOutboxEvent implements ShouldQueue
+class ConsumeOutboxEvent implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
     public int $tries = 5;
 
+    public int $uniqueFor = 10;
+
     public function __construct(public string $outboxEventId)
     {
+    }
+
+    public function uniqueId(): string
+    {
+        return $this->outboxEventId;
     }
 
     public function handle(): void
