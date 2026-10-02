@@ -12,7 +12,7 @@ if [[ ! -f vendor/bin/sail ]]; then
         -v "$PWD:/app" \
         -w /app \
         composer:2 \
-        composer install --no-scripts --ignore-platform-req=php
+        composer install --no-scripts --ignore-platform-reqs
 fi
 
 docker compose build laravel.test pgbouncer

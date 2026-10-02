@@ -9,3 +9,6 @@ Schedule::command('reservations:expire')
 Schedule::command('outbox:publish')
     ->everySecond()
     ->withoutOverlapping();
+
+Schedule::command('horizon:snapshot')
+    ->everyFiveMinutes();

@@ -1,0 +1,80 @@
+name: tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  php:
+    runs-on: ubuntu-24.04
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: ticketrush
+          POSTGRES_USER: ticketrush
+          POSTGRES_PASSWORD: ticketrush
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ticketrush -d ticketrush"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:8.10-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: ticketrush
+      DB_USERNAME: ticketrush
+      DB_PASSWORD: ticketrush
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: mbstring, pdo_pgsql, redis, pcntl, posix
+          coverage: none
+
+      - name: Validate Composer
+        run: composer validate
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare application
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+          php artisan migrate --force
+
+      - name: PHP syntax
+        run: find app bootstrap config database routes services tests -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Pint
+        run: vendor/bin/pint --test
+
+      - name: Tests
+        run: php artisan test
