@@ -149,6 +149,85 @@ services:
     networks:
       - sail
 
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    environment:
+      DATA_SOURCE_NAME: 'postgresql://ticketrush:ticketrush@pgsql:5432/ticketrush?sslmode=disable'
+    networks:
+      - sail
+    depends_on:
+      pgsql:
+        condition: service_healthy
+
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    environment:
+      REDIS_ADDR: 'redis://redis:6379'
+    networks:
+      - sail
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:latest
+    command:
+      - '--nginx.scrape-uri=http://nginx/nginx_status'
+    networks:
+      - sail
+    depends_on:
+      - nginx
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - '${PROMETHEUS_PORT:-9090}:9090'
+    volumes:
+      - './docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro'
+      - 'sail-prometheus:/prometheus'
+    networks:
+      - sail
+    depends_on:
+      - postgres-exporter
+      - redis-exporter
+      - nginx-exporter
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - '${GRAFANA_PORT:-3000}:3000'
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: 'true'
+      GF_AUTH_ANONYMOUS_ORG_ROLE: 'Admin'
+      GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION: 'true'
+    volumes:
+      - './docker/grafana/provisioning:/etc/grafana/provisioning:ro'
+      - './docker/grafana/dashboards:/var/lib/grafana/dashboards:ro'
+      - 'sail-grafana:/var/lib/grafana'
+    networks:
+      - sail
+    depends_on:
+      - prometheus
+
+  k6:
+    image: grafana/k6:latest
+    profiles:
+      - load
+    environment:
+      BASE_URL: 'http://nginx'
+      EVENT_ID: '1'
+      RATE: '${K6_RATE:-100}'
+      DURATION: '${K6_DURATION:-30s}'
+      PRE_ALLOCATED_VUS: '${K6_PRE_ALLOCATED_VUS:-100}'
+      MAX_VUS: '${K6_MAX_VUS:-1000}'
+    volumes:
+      - './load/k6:/scripts:ro'
+    command: ['run', '/scripts/reservations.js']
+    networks:
+      - sail
+    depends_on:
+      - nginx
+
 networks:
   sail:
     driver: bridge
@@ -157,4 +236,8 @@ volumes:
   sail-pgsql:
     driver: local
   sail-redis:
+    driver: local
+  sail-prometheus:
+    driver: local
+  sail-grafana:
     driver: local
